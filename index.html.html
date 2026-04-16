@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>♥ Heart</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#0d0010;overflow:hidden;height:100dvh;width:100vw;display:flex;align-items:center;justify-content:center;flex-direction:column}
+  canvas{display:block;touch-action:none}
+  #msg{position:absolute;bottom:40px;color:#ff6b9d;font-family:monospace;font-size:15px;letter-spacing:2px;opacity:0.85;text-align:center;pointer-events:none;animation:fade 3s ease-in-out infinite alternate}
+  @keyframes fade{from{opacity:0.4}to{opacity:1}}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="msg">♥ Made with Python &amp; Love ♥</div>
+<script>
+const c = document.getElementById('c');
+const ctx = c.getContext('2d');
+let W, H, cx, cy, scale;
+
+function resize(){
+  W = c.width  = window.innerWidth;
+  H = c.height = window.innerHeight;
+  cx = W/2; cy = H/2;
+  scale = Math.min(W, H) / 420;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ── Heart parametric ───────────────────────────────────────
+function heartX(t){ return 16 * Math.pow(Math.sin(t),3); }
+function heartY(t){ return -(13*Math.cos(t) - 5*Math.cos(2*t) - 2*Math.cos(3*t) - Math.cos(4*t)); }
+
+// ── Particles ──────────────────────────────────────────────
+const NUM = 180;
+const particles = [];
+
+function randomOnHeart(){
+  const t = Math.random() * Math.PI * 2;
+  const r = 0.85 + Math.random() * 0.18;
+  return { x: heartX(t)*r, y: heartY(t)*r };
+}
+
+for(let i=0;i<NUM;i++){
+  const p = randomOnHeart();
+  particles.push({
+    ox: p.x, oy: p.y,
+    x:  p.x, y:  p.y,
+    vx: (Math.random()-.5)*0.12,
+    vy: (Math.random()-.5)*0.12,
+    size: 1.5 + Math.random()*2.5,
+    alpha: 0.4 + Math.random()*0.6,
+    phase: Math.random()*Math.PI*2,
+    speed: 0.018 + Math.random()*0.022,
+    color: `hsl(${330+Math.random()*40},100%,${55+Math.random()*25}%)`
+  });
+}
+
+// ── Floating hearts ────────────────────────────────────────
+const floaters = [];
+for(let i=0;i<22;i++){
+  floaters.push({
+    x: (Math.random()-.5)*340,
+    y: 60 + Math.random()*300,
+    size: 4 + Math.random()*14,
+    speed: 0.4 + Math.random()*0.7,
+    alpha: 0.08 + Math.random()*0.18,
+    drift: (Math.random()-.5)*0.4,
+    phase: Math.random()*Math.PI*2
+  });
+}
+
+// ── Draw heart path ────────────────────────────────────────
+function heartPath(size){
+  ctx.beginPath();
+  for(let i=0;i<=360;i++){
+    const t = (i/180)*Math.PI;
+    ctx.lineTo(cx + heartX(t)*size, cy + heartY(t)*size);
+  }
+  ctx.closePath();
+}
+
+// ── Draw small heart (floaters) ────────────────────────────
+function smallHeart(x,y,s){
+  ctx.beginPath();
+  for(let i=0;i<=360;i++){
+    const t=(i/180)*Math.PI;
+    ctx.lineTo(x+heartX(t)*s, y+heartY(t)*s);
+  }
+  ctx.closePath();
+}
+
+// ── Ripple ring ────────────────────────────────────────────
+const rings = [];
+function spawnRing(){ rings.push({r:0, alpha:0.6}); }
+setInterval(spawnRing, 900);
+
+let frame = 0;
+function draw(){
+  frame++;
+  ctx.clearRect(0,0,W,H);
+
+  // Beat scale
+  const beat = 1 + 0.07 * Math.sin(frame * 0.07) + 0.03 * Math.sin(frame * 0.14);
+  const S = scale * beat;
+
+  // ── Background glow ──
+  const grd = ctx.createRadialGradient(cx,cy,10,cx,cy,250*scale);
+  grd.addColorStop(0,'rgba(180,0,60,0.18)');
+  grd.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle = grd;
+  ctx.fillRect(0,0,W,H);
+
+  // ── Ripple rings ──
+  for(let i=rings.length-1;i>=0;i--){
+    const rg = rings[i];
+    rg.r += 1.4 * scale;
+    rg.alpha -= 0.012;
+    if(rg.alpha<=0){rings.splice(i,1);continue;}
+    heartPath(rg.r/16);
+    ctx.strokeStyle = `rgba(255,80,120,${rg.alpha})`;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
+  // ── Floating mini hearts ──
+  for(const f of floaters){
+    f.y -= f.speed;
+    f.x += f.drift * Math.sin(frame*0.03 + f.phase);
+    if(f.y < -cy-20){ f.y = cy+80; f.x=(Math.random()-.5)*340; }
+    ctx.save();
+    ctx.translate(cx + f.x*scale, cy + f.y*scale);
+    smallHeart(0,0,f.size*0.055*scale);
+    ctx.fillStyle = `rgba(255,80,140,${f.alpha})`;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // ── Main heart shadow ──
+  ctx.save();
+  heartPath(S);
+  ctx.shadowColor = '#ff1744';
+  ctx.shadowBlur  = 40*scale;
+  ctx.fillStyle   = 'rgba(180,0,50,0.22)';
+  ctx.fill();
+  ctx.restore();
+
+  // ── Main heart gradient fill ──
+  const gFill = ctx.createRadialGradient(cx-2*scale, cy-4*scale, 2, cx, cy, 15*scale);
+  gFill.addColorStop(0,'#ff6b9d');
+  gFill.addColorStop(0.45,'#ff1744');
+  gFill.addColorStop(1,'#7f0000');
+  heartPath(S);
+  ctx.fillStyle = gFill;
+  ctx.fill();
+
+  // ── Heart border glow ──
+  for(const [lw,al] of [[8,0.12],[4,0.25],[2,0.55],[1,0.9]]){
+    heartPath(S);
+    ctx.strokeStyle = `rgba(255,107,157,${al})`;
+    ctx.lineWidth = lw * scale;
+    ctx.stroke();
+  }
+
+  // ── Particles ──
+  for(const p of particles){
+    p.phase += p.speed;
+    p.x = p.ox + Math.sin(p.phase)*1.2;
+    p.y = p.oy + Math.cos(p.phase*0.7)*1.2;
+    ctx.beginPath();
+    ctx.arc(cx + p.x*S, cy + p.y*S, p.size*scale, 0, Math.PI*2);
+    ctx.fillStyle = p.color;
+    ctx.globalAlpha = p.alpha * (0.7 + 0.3*Math.sin(p.phase));
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // ── Sparkle dots on border ──
+  const NS = 14;
+  for(let i=0;i<NS;i++){
+    const t = (i/NS)*Math.PI*2 + frame*0.012;
+    const sx = cx + heartX(t)*S;
+    const sy = cy + heartY(t)*S;
+    const pulse = 0.5 + 0.5*Math.sin(frame*0.1 + i*0.9);
+    ctx.beginPath();
+    ctx.arc(sx, sy, (2+2*pulse)*scale, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(255,255,255,${0.3+0.7*pulse})`;
+    ctx.fill();
+  }
+
+  // ── Centre shine ──
+  const shine = ctx.createRadialGradient(cx-1.5*scale,cy-3*scale,0,cx,cy,5*scale);
+  shine.addColorStop(0,'rgba(255,255,255,0.55)');
+  shine.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.beginPath();
+  ctx.arc(cx-1.5*scale,cy-3*scale,5*scale,0,Math.PI*2);
+  ctx.fillStyle = shine;
+  ctx.fill();
+
+  requestAnimationFrame(draw);
+}
+draw();
+
+// ── Tap to burst ──────────────────────────────────────────
+c.addEventListener('pointerdown', e => {
+  spawnRing();
+  for(let i=0;i<12;i++){
+    const p = randomOnHeart();
+    particles.push({
+      ox:p.x, oy:p.y, x:p.x, y:p.y,
+      vx:0, vy:0,
+      size:2+Math.random()*3,
+      alpha:0.9,
+      phase:Math.random()*Math.PI*2,
+      speed:0.03+Math.random()*0.03,
+      color:`hsl(${320+Math.random()*60},100%,70%)`
+    });
+    if(particles.length > NUM+40) particles.shift();
+  }
+});
+</script>
+</body>
+</html>
